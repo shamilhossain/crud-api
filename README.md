@@ -94,3 +94,26 @@ FastAPI automatically generates beautiful, interactive API documentation. While 
 
 *(You can add a screenshot of your Swagger UI here by replacing the placeholder image name)*
 ![Swagger UI](placeholder_for_swagger_screenshot.png)
+
+---
+
+## 🧪 Mortality Experiment
+
+Because we use an in-memory Python list (`tasks_db`) instead of a real database, all data is temporarily stored in the server's RAM. Whenever the server restarts or crashes, this memory is cleared, causing any newly created or updated tasks to be lost and reset to the hardcoded defaults.
+
+---
+
+## 🤖 Stage 7: AI Rematch (AI vs Me)
+
+### The Prompt
+I asked an AI to generate the API with this prompt:
+> "Write a FastAPI To-Do List CRUD API. Use an in-memory list with 3 dummy tasks. The model should have id, title, and done. Create GET all, GET by id, POST, PUT, and DELETE endpoints. Use Pydantic for validation."
+
+### What the AI did better
+The AI utilized Pydantic's `Field` function which makes the models cleaner and allows for built-in metadata like descriptions. It also used `**task.dict()` to unpack the model cleanly, saving a few lines of code during task creation and updates.
+
+### What the AI got wrong / ignored
+The AI completely missed the `201 Created` status code on the `POST` endpoint, returning the default `200 OK` instead. It also did not implement any custom validation to prevent empty strings for titles, allowing users to submit blanks.
+
+### What my prompt forgot to specify
+I realized I forgot to explicitly tell the AI to return a `404` for missing IDs in the PUT and DELETE endpoints (though it guessed it right anyway), and I didn't specify that I wanted to manually block empty or whitespace-only strings for titles!

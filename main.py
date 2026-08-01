@@ -34,8 +34,29 @@ def health_check():
     return {"status": "ok"}
 
 @app.get("/tasks", response_model=List[Task])
-def get_tasks():
-    return tasks_db
+def get_tasks(done: Optional[bool] = None, search: Optional[str] = None):
+    results = tasks_db
+    if done is not None:
+        results = [t for t in results if t.done == done]
+    if search is not None:
+        results = [t for t in results if search.lower() in t.title.lower()]
+    return results
+
+@app.get("/stats")
+def get_stats():
+    total = len(tasks_db)
+    done_count = sum(1 for t in tasks_db if t.done)
+    return {"total": total, "done": done_count, "open": total - done_count}
+
+@app.post("/reset")
+def reset_db():
+    global tasks_db
+    tasks_db = [
+        Task(id=1, title="Buy groceries", done=False),
+        Task(id=2, title="Read FastAPI docs", done=True),
+        Task(id=3, title="Write code", done=False)
+    ]
+    return {"message": "Database reset to defaults"}
 
 @app.get("/tasks/{id}", response_model=Task)
 def get_task(id: int):
