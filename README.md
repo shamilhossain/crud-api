@@ -115,5 +115,14 @@ The AI utilized Pydantic's `Field` function which makes the models cleaner and a
 ### What the AI got wrong / ignored
 The AI completely missed the `201 Created` status code on the `POST` endpoint, returning the default `200 OK` instead. It also did not implement any custom validation to prevent empty strings for titles, allowing users to submit blanks.
 
+
+
 ### What my prompt forgot to specify
 I realized I forgot to explicitly tell the AI to return a `404` for missing IDs in the PUT and DELETE endpoints (though it guessed it right anyway), and I didn't specify that I wanted to manually block empty or whitespace-only strings for titles!
+
+### Connecting to the database
+<img width="938" height="624" alt="Screenshot 2026-08-03 at 12 34 54 AM" src="https://github.com/user-attachments/assets/8862e874-ab28-46c8-9c42-646c5d8f05d9" />
+
+I chose SQLite because it requires zero setup and stores data in a single file (tasks.db).
+SQL Example: SELECT * FROM tasks;
+
