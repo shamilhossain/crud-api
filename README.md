@@ -97,9 +97,34 @@ FastAPI automatically generates beautiful, interactive API documentation. While 
 
 ---
 
-## 🧪 Mortality Experiment
+## 🐳 Running with Docker (PostgreSQL)
 
-Because we use an in-memory Python list (`tasks_db`) instead of a real database, all data is temporarily stored in the server's RAM. Whenever the server restarts or crashes, this memory is cleared, causing any newly created or updated tasks to be lost and reset to the hardcoded defaults.
+This project has been updated to use **PostgreSQL** instead of an in-memory database or SQLite. It is fully containerized using Docker and Docker Compose.
+
+### Starting the Stack
+
+1. **Create an environment file**:
+   Copy the example environment file to `.env`:
+   ```bash
+   cp .env.example .env
+   ```
+2. **Run Docker Compose**:
+   ```bash
+   docker compose up -d
+   ```
+   This will start both the FastAPI application and the PostgreSQL database in the background. The API will be available at `http://127.0.0.1:8000`.
+
+### Verifying Data Persistence
+
+The database uses a Docker named volume (`pgdata`) to ensure your tasks are saved even if the container stops.
+
+1. **Add a task**: Use the Swagger UI or `curl` to add a new task.
+2. **Restart the containers**:
+   ```bash
+   docker compose down
+   docker compose up -d
+   ```
+3. **Verify**: Fetch the tasks again, and you'll see your newly added task is still there!
 
 ---
 

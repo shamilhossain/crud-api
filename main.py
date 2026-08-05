@@ -1,25 +1,31 @@
-import sqlite3
+import os
+import psycopg2
+from psycopg2.extras import DictCursor
 from fastapi import FastAPI, HTTPException, status
 from pydantic import BaseModel
 from typing import List, Optional
 from contextlib import asynccontextmanager
+from dotenv import load_dotenv
 
-DATABASE = "tasks.db"
+load_dotenv()
+
+# Use a default fallback for local dev if not running in docker
+DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://user:password@localhost:5432/taskdb")
 
 def get_db_connection():
-    conn = sqlite3.connect(DATABASE, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
+    # Use DictCursor to get dictionary-like behavior for rows
+    conn = psycopg2.connect(DATABASE_URL, cursor_factory=DictCursor)
     return conn
 
 def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
-    # Stage 0: Create the table
+    # Stage 0: Create the table for PostgreSQL
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS tasks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             title TEXT NOT NULL,
-            done BOOLEAN NOT NULL DEFAULT 0
+            done BOOLEAN NOT NULL DEFAULT FALSE
         )
     ''')
     
@@ -31,7 +37,7 @@ def init_db():
             ("Read FastAPI docs", True),
             ("Write code", False)
         ]
-        cursor.executemany('INSERT INTO tasks (title, done) VALUES (?, ?)', sample_tasks)
+        cursor.executemany('INSERT INTO tasks (title, done) VALUES (%s, %s)', sample_tasks)
     
     conn.commit()
     conn.close()
@@ -71,18 +77,18 @@ def get_tasks(done: Optional[bool] = None, search: Optional[str] = None):
     params = []
     
     if done is not None:
-        query += " AND done = ?"
-        params.append(1 if done else 0)
+        query += " AND done = %s"
+        params.append(done)
     
     if search is not None:
-        query += " AND title LIKE ?"
+        query += " AND title ILIKE %s" # ILIKE for case-insensitive search in Postgres
         params.append(f"%{search}%")
         
     cursor.execute(query, params)
     rows = cursor.fetchall()
     conn.close()
     
-    # Convert Row objects to dictionaries
+    # Convert DictRow objects to dictionaries
     return [dict(row) for row in rows]
 
 # Stage 1: Read single task
@@ -90,7 +96,7 @@ def get_tasks(done: Optional[bool] = None, search: Optional[str] = None):
 def get_task(id: int):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM tasks WHERE id = ?", (id,))
+    cursor.execute("SELECT * FROM tasks WHERE id = %s", (id,))
     row = cursor.fetchone()
     conn.close()
     
@@ -106,15 +112,17 @@ def create_task(task_in: TaskInput):
         
     conn = get_db_connection()
     cursor = conn.cursor()
+    
+    # Use RETURNING id to get the newly inserted ID
     cursor.execute(
-        "INSERT INTO tasks (title, done) VALUES (?, ?)", 
-        (task_in.title.strip(), 1 if task_in.done else 0)
+        "INSERT INTO tasks (title, done) VALUES (%s, %s) RETURNING id", 
+        (task_in.title.strip(), task_in.done)
     )
+    new_id = cursor.fetchone()[0]
     conn.commit()
-    new_id = cursor.lastrowid
     
     # Fetch the newly created task to return
-    cursor.execute("SELECT * FROM tasks WHERE id = ?", (new_id,))
+    cursor.execute("SELECT * FROM tasks WHERE id = %s", (new_id,))
     new_task = cursor.fetchone()
     conn.close()
     
@@ -130,19 +138,19 @@ def update_task(id: int, task_in: TaskInput):
     cursor = conn.cursor()
     
     # Check if exists
-    cursor.execute("SELECT * FROM tasks WHERE id = ?", (id,))
+    cursor.execute("SELECT * FROM tasks WHERE id = %s", (id,))
     if cursor.fetchone() is None:
         conn.close()
         raise HTTPException(status_code=404, detail="Task not found")
         
     cursor.execute(
-        "UPDATE tasks SET title = ?, done = ? WHERE id = ?",
-        (task_in.title.strip(), 1 if task_in.done else 0, id)
+        "UPDATE tasks SET title = %s, done = %s WHERE id = %s",
+        (task_in.title.strip(), task_in.done, id)
     )
     conn.commit()
     
     # Fetch the updated task
-    cursor.execute("SELECT * FROM tasks WHERE id = ?", (id,))
+    cursor.execute("SELECT * FROM tasks WHERE id = %s", (id,))
     updated_task = cursor.fetchone()
     conn.close()
     
@@ -155,12 +163,12 @@ def delete_task(id: int):
     cursor = conn.cursor()
     
     # Check if exists
-    cursor.execute("SELECT * FROM tasks WHERE id = ?", (id,))
+    cursor.execute("SELECT * FROM tasks WHERE id = %s", (id,))
     if cursor.fetchone() is None:
         conn.close()
         raise HTTPException(status_code=404, detail="Task not found")
         
-    cursor.execute("DELETE FROM tasks WHERE id = ?", (id,))
+    cursor.execute("DELETE FROM tasks WHERE id = %s", (id,))
     conn.commit()
     conn.close()
     return
@@ -174,7 +182,7 @@ def get_stats():
     cursor.execute("SELECT COUNT(*) FROM tasks")
     total = cursor.fetchone()[0]
     
-    cursor.execute("SELECT COUNT(*) FROM tasks WHERE done = 1")
+    cursor.execute("SELECT COUNT(*) FROM tasks WHERE done = TRUE")
     done_count = cursor.fetchone()[0]
     
     conn.close()
